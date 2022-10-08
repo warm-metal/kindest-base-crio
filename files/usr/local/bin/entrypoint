@@ -496,7 +496,7 @@ validate_userns
 
 # run pre-init fixups
 # NOTE: it's important that we do configure* first in this order to avoid races
-configure_containerd
+#configure_containerd
 configure_proxy
 fix_mount
 fix_cgroup

@@ -25,9 +25,6 @@ FROM $BASE_IMAGE as build
 # `docker buildx` automatically sets this arg value
 ARG TARGETARCH
 
-# amd64 => x86_64 ; arm64 => aarch64
-ARG FUSE_OVERLAYFS_TARGETARCH
-
 # Configure crictl binary from upstream
 ARG CRICTL_VERSION="v1.25.0"
 ARG CRICTL_URL="https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-${TARGETARCH}.tar.gz"
@@ -45,9 +42,10 @@ ARG CNI_PLUGINS_ARM64_SHA256SUM="16484966a46b4692028ba32d16afd994e079dc2cc63fbc2
 ARG CNI_PLUGINS_PPC64LE_SHA256SUM="1551259fbfe861d942846bee028d5a85f492393e04bcd6609ac8aaa7a3d71431"
 ARG CNI_PLUGINS_S390X_SHA256SUM="767c6b2f191a666522ab18c26aab07de68508a8c7a6d56625e476f35ba527c76"
 
+#FIXME only amd64: amd64 => x86_64 ; arm64 => aarch64
 # Configure fuse-overlayfs snapshotter binary from upstream
 ARG FUSE_OVERLAYFS_VERSION="1.9"
-ARG FUSE_OVERLAYFS_TARBALL="v${FUSE_OVERLAYFS_VERSION}/fuse-overlayfs-${FUSE_OVERLAYFS_TARGETARCH}"
+ARG FUSE_OVERLAYFS_TARBALL="v${FUSE_OVERLAYFS_VERSION}/fuse-overlayfs-x86_64"
 ARG FUSE_OVERLAYFS_URL="https://github.com/containers/fuse-overlayfs/releases/download/${FUSE_OVERLAYFS_TARBALL}"
 ARG FUSE_OVERLAYFS_AMD64_SHA256SUM="3809625c3ecd9e13eb2fad709ddc6778944bbabe50ce1976b08085a035fea0aa"
 ARG FUSE_OVERLAYFS_ARM64_SHA256SUM="a28fe7fdaeb5fbe8e7a109ff02b2abbae69301bb7e0446c855023edf58be51c3"
@@ -60,7 +58,7 @@ COPY --chmod=0755 files/usr/local/bin/* /usr/local/bin/
 
 # all configs are 0644 (rw- r-- r--)
 COPY --chmod=0644 files/etc/* /etc/
-COPY --chmod=0644 files/etc/containerd/* /etc/containerd/
+COPY --chmod=0644 files/etc/crio/* /etc/crio/
 COPY --chmod=0644 files/etc/default/* /etc/default/
 COPY --chmod=0644 files/etc/sysctl.d/* /etc/sysctl.d/
 COPY --chmod=0644 files/etc/systemd/system/* /etc/systemd/system/
@@ -82,10 +80,6 @@ COPY --chmod=0644 files/etc/systemd/system/kubelet.service.d/* /etc/systemd/syst
 # - removing unwanted systemd services
 # - disabling kmsg in journald (these log entries would be confusing)
 #
-# Then we install containerd from our nightly build infrastructure, as this
-# build for multiple architectures and allows us to upgrade to patched releases
-# more quickly.
-#
 # Next we download and extract crictl and CNI plugin binaries from upstream.
 #
 # Next we ensure the /etc/kubernetes/manifests directory exists. Normally
@@ -103,7 +97,7 @@ RUN echo "Installing Packages ..." \
       libseccomp2 pigz \
       bash ca-certificates curl rsync \
       nfs-common fuse-overlayfs open-iscsi \
-      jq \
+      jq gnupg \
     && find /lib/systemd/system/sysinit.target.wants/ -name "systemd-tmpfiles-setup.service" -delete \
     && rm -f /lib/systemd/system/multi-user.target.wants/* \
     && rm -f /etc/systemd/system/*.wants/* \
@@ -118,18 +112,15 @@ RUN echo "Enabling kubelet ... " \
     && systemctl enable kubelet.service
 
 ENV OS xUbuntu_22.04
-ENV CRIO-VERSION v1.25.1
+ENV CRIO_VERSION 1.25
 RUN echo "Installing cri-o ..." \
-    && echo 'deb http://deb.debian.org/debian buster-backports main' > /etc/apt/sources.list.d/backports.list \
-    && apt update -y \
-    && apt install -y -t buster-backports libseccomp2 || apt update -y -t buster-backports libseccomp2 \
     && echo "deb [signed-by=/usr/share/keyrings/libcontainers-archive-keyring.gpg] https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/$OS/ /" > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list \
-    && echo "deb [signed-by=/usr/share/keyrings/libcontainers-crio-archive-keyring.gpg] https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/$CRIO-VERSION/$OS/ /" > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable:cri-o:$CRIO-VERSION.list \
+    && echo "deb [signed-by=/usr/share/keyrings/libcontainers-crio-archive-keyring.gpg] https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/${CRIO_VERSION}/$OS/ /" > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable:cri-o:${CRIO_VERSION}.list \
     && mkdir -p /usr/share/keyrings \
     && curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/$OS/Release.key | gpg --dearmor -o /usr/share/keyrings/libcontainers-archive-keyring.gpg \
-    && curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/$CRIO-VERSION/$OS/Release.key | gpg --dearmor -o /usr/share/keyrings/libcontainers-crio-archive-keyring.gpg \
+    && curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/${CRIO_VERSION}/$OS/Release.key | gpg --dearmor -o /usr/share/keyrings/libcontainers-crio-archive-keyring.gpg \
     && apt-get update -y \
-    && apt-get install cri-o cri-o-runc -y \
+    && apt-get install -o Dpkg::Options::="--force-confold" --yes --force-yes cri-o cri-o-runc \
     && systemctl enable crio \
     && rm -rf /var/lib/apt/lists/*
 
