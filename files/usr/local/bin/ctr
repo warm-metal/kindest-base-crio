@@ -20,7 +20,9 @@ case $1 in
     ;;
 
   import)
-    podman -q image import -
+    digest=`podman image import -q - <&0`
+    short=`echo ${digest#"sha256:"} | head -c 12`
+    podman tag ${short} import-`date -Idate`@${digest}
     ;;
 
   list)
