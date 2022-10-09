@@ -20,10 +20,17 @@
 # start from ubuntu, this image is reasonably small as a starting point
 # for a kubernetes node image, it doesn't contain much we don't need
 ARG BASE_IMAGE=ubuntu:22.04
-FROM $BASE_IMAGE as build
+FROM $BASE_IMAGE as build-on
 
-# `docker buildx` automatically sets this arg value
+FROM $BASE_IMAGE as build-onamd64
+ARG FUSE_OVERLAYFS_ARCH="x86_64"
+
+# ARG BASE_IMAGE=ubuntu:22.04
+FROM $BASE_IMAGE as build-onarm64
+ARG FUSE_OVERLAYFS_ARCH="aarch64"
+
 ARG TARGETARCH
+FROM build-on${TARGETARCH} as build
 
 # Configure crictl binary from upstream
 ARG CRICTL_VERSION="v1.25.0"
@@ -45,7 +52,7 @@ ARG CNI_PLUGINS_S390X_SHA256SUM="767c6b2f191a666522ab18c26aab07de68508a8c7a6d566
 #FIXME only amd64: amd64 => x86_64 ; arm64 => aarch64
 # Configure fuse-overlayfs snapshotter binary from upstream
 ARG FUSE_OVERLAYFS_VERSION="1.9"
-ARG FUSE_OVERLAYFS_TARBALL="v${FUSE_OVERLAYFS_VERSION}/fuse-overlayfs-x86_64"
+ARG FUSE_OVERLAYFS_TARBALL="v${FUSE_OVERLAYFS_VERSION}/fuse-overlayfs-${FUSE_OVERLAYFS_ARCH}"
 ARG FUSE_OVERLAYFS_URL="https://github.com/containers/fuse-overlayfs/releases/download/${FUSE_OVERLAYFS_TARBALL}"
 ARG FUSE_OVERLAYFS_AMD64_SHA256SUM="3809625c3ecd9e13eb2fad709ddc6778944bbabe50ce1976b08085a035fea0aa"
 ARG FUSE_OVERLAYFS_ARM64_SHA256SUM="a28fe7fdaeb5fbe8e7a109ff02b2abbae69301bb7e0446c855023edf58be51c3"
@@ -58,6 +65,8 @@ COPY --chmod=0755 files/usr/local/bin/* /usr/local/bin/
 
 # all configs are 0644 (rw- r-- r--)
 COPY --chmod=0644 files/etc/* /etc/
+# Keep containerd configuration to support kind build
+COPY --chmod=0644 files/etc/containerd/* /etc/containerd/
 COPY --chmod=0644 files/etc/crio/* /etc/crio/
 COPY --chmod=0644 files/etc/default/* /etc/default/
 COPY --chmod=0644 files/etc/sysctl.d/* /etc/sysctl.d/
@@ -97,7 +106,7 @@ RUN echo "Installing Packages ..." \
       libseccomp2 pigz \
       bash ca-certificates curl rsync \
       nfs-common fuse-overlayfs open-iscsi \
-      jq gnupg \
+      jq gnupg podman \
     && find /lib/systemd/system/sysinit.target.wants/ -name "systemd-tmpfiles-setup.service" -delete \
     && rm -f /lib/systemd/system/multi-user.target.wants/* \
     && rm -f /etc/systemd/system/*.wants/* \

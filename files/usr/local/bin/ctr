@@ -1,0 +1,29 @@
+#!/bin/sh
+
+# A Fake ctr to fool kind build
+
+# "ctr", "--namespace=k8s.io", "images", "pull", "--platform="+platform, image,
+# "ctr", "--namespace=k8s.io", "images", "import", "--all-platforms", "--no-unpack", "--digests", "-",
+# "ctr", "--namespace=k8s.io", "images", "list", "-q"
+
+shift 2
+
+case $1 in
+  pull)
+    shift
+    platform=$1
+    
+    shift
+    image=$1
+
+    podman pull $platform $image
+    ;;
+
+  import)
+    podman -q image import -
+    ;;
+
+  list)
+    podman images -q
+    ;;
+esac
