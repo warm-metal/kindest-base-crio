@@ -20,44 +20,21 @@
 # start from ubuntu, this image is reasonably small as a starting point
 # for a kubernetes node image, it doesn't contain much we don't need
 ARG BASE_IMAGE=ubuntu:22.04
-FROM $BASE_IMAGE as build-on
+FROM $BASE_IMAGE as base
 
-FROM $BASE_IMAGE as build-onamd64
+FROM base as build-ons390x
+ARG FUSE_OVERLAYFS_ARCH="s390x"
+
+FROM base as build-onppc64le
+ARG FUSE_OVERLAYFS_ARCH="ppc64le"
+
+FROM base as build-onamd64
 ARG FUSE_OVERLAYFS_ARCH="x86_64"
 
-# ARG BASE_IMAGE=ubuntu:22.04
-FROM $BASE_IMAGE as build-onarm64
+FROM base as build-onarm64
 ARG FUSE_OVERLAYFS_ARCH="aarch64"
 
-ARG TARGETARCH
 FROM build-on${TARGETARCH} as build
-
-# Configure crictl binary from upstream
-ARG CRICTL_VERSION="v1.25.0"
-ARG CRICTL_URL="https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-${TARGETARCH}.tar.gz"
-ARG CRICTL_AMD64_SHA256SUM="86ab210c007f521ac4cdcbcf0ae3fb2e10923e65f16de83e0e1db191a07f0235"
-ARG CRICTL_ARM64_SHA256SUM="651c939eca010bbf48cc3932516b194028af0893025f9e366127f5b50ad5c4f4"
-ARG CRICTL_PPC64LE_SHA256SUM="1b77d1f198c67b2015104eee6fe7690465b8efa4675ea6b4b958c63d60a487e7"
-ARG CRICTL_S390X_SHA256SUM="6b70ecaae209e196b2b0553e4c5e1b53240d002c88cb05cad442ddd8190d1481"
-
-# Configure CNI binaries from upstream
-ARG CNI_PLUGINS_VERSION="v1.1.1"
-ARG CNI_PLUGINS_TARBALL="${CNI_PLUGINS_VERSION}/cni-plugins-linux-${TARGETARCH}-${CNI_PLUGINS_VERSION}.tgz"
-ARG CNI_PLUGINS_URL="https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGINS_TARBALL}"
-ARG CNI_PLUGINS_AMD64_SHA256SUM="b275772da4026d2161bf8a8b41ed4786754c8a93ebfb6564006d5da7f23831e5"
-ARG CNI_PLUGINS_ARM64_SHA256SUM="16484966a46b4692028ba32d16afd994e079dc2cc63fbc2191d7bfaf5e11f3dd"
-ARG CNI_PLUGINS_PPC64LE_SHA256SUM="1551259fbfe861d942846bee028d5a85f492393e04bcd6609ac8aaa7a3d71431"
-ARG CNI_PLUGINS_S390X_SHA256SUM="767c6b2f191a666522ab18c26aab07de68508a8c7a6d56625e476f35ba527c76"
-
-#FIXME only amd64: amd64 => x86_64 ; arm64 => aarch64
-# Configure fuse-overlayfs snapshotter binary from upstream
-ARG FUSE_OVERLAYFS_VERSION="1.9"
-ARG FUSE_OVERLAYFS_TARBALL="v${FUSE_OVERLAYFS_VERSION}/fuse-overlayfs-${FUSE_OVERLAYFS_ARCH}"
-ARG FUSE_OVERLAYFS_URL="https://github.com/containers/fuse-overlayfs/releases/download/${FUSE_OVERLAYFS_TARBALL}"
-ARG FUSE_OVERLAYFS_AMD64_SHA256SUM="3809625c3ecd9e13eb2fad709ddc6778944bbabe50ce1976b08085a035fea0aa"
-ARG FUSE_OVERLAYFS_ARM64_SHA256SUM="a28fe7fdaeb5fbe8e7a109ff02b2abbae69301bb7e0446c855023edf58be51c3"
-ARG FUSE_OVERLAYFS_PPC64LE_SHA256SUM="e9df32f9ae46d10e525e075fd1e6ba3284d179d030a5edb03b839791349eac60"
-ARG FUSE_OVERLAYFS_S390X_SHA256SUM="693c70932df666b71397163a604853362e8316e734e7202fdf342b0f6096b874"
 
 # copy in static files
 # all scripts are 0755 (rwx r-x r-x)
@@ -120,6 +97,34 @@ RUN echo "Installing Packages ..." \
 RUN echo "Enabling kubelet ... " \
     && systemctl enable kubelet.service
 
+ARG TARGETARCH
+# Configure crictl binary from upstream
+ARG CRICTL_VERSION="v1.25.0"
+ARG CRICTL_URL="https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-${TARGETARCH}.tar.gz"
+ARG CRICTL_AMD64_SHA256SUM="86ab210c007f521ac4cdcbcf0ae3fb2e10923e65f16de83e0e1db191a07f0235"
+ARG CRICTL_ARM64_SHA256SUM="651c939eca010bbf48cc3932516b194028af0893025f9e366127f5b50ad5c4f4"
+ARG CRICTL_PPC64LE_SHA256SUM="1b77d1f198c67b2015104eee6fe7690465b8efa4675ea6b4b958c63d60a487e7"
+ARG CRICTL_S390X_SHA256SUM="6b70ecaae209e196b2b0553e4c5e1b53240d002c88cb05cad442ddd8190d1481"
+
+# Configure CNI binaries from upstream
+ARG CNI_PLUGINS_VERSION="v1.1.1"
+ARG CNI_PLUGINS_TARBALL="${CNI_PLUGINS_VERSION}/cni-plugins-linux-${TARGETARCH}-${CNI_PLUGINS_VERSION}.tgz"
+ARG CNI_PLUGINS_URL="https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGINS_TARBALL}"
+ARG CNI_PLUGINS_AMD64_SHA256SUM="b275772da4026d2161bf8a8b41ed4786754c8a93ebfb6564006d5da7f23831e5"
+ARG CNI_PLUGINS_ARM64_SHA256SUM="16484966a46b4692028ba32d16afd994e079dc2cc63fbc2191d7bfaf5e11f3dd"
+ARG CNI_PLUGINS_PPC64LE_SHA256SUM="1551259fbfe861d942846bee028d5a85f492393e04bcd6609ac8aaa7a3d71431"
+ARG CNI_PLUGINS_S390X_SHA256SUM="767c6b2f191a666522ab18c26aab07de68508a8c7a6d56625e476f35ba527c76"
+
+# Configure fuse-overlayfs snapshotter binary from upstream
+ARG FUSE_OVERLAYFS_VERSION="1.9"
+ARG FUSE_OVERLAYFS_TARBALL="v${FUSE_OVERLAYFS_VERSION}/fuse-overlayfs-${FUSE_OVERLAYFS_ARCH}"
+ARG FUSE_OVERLAYFS_URL="https://github.com/containers/fuse-overlayfs/releases/download/${FUSE_OVERLAYFS_TARBALL}"
+ARG FUSE_OVERLAYFS_AMD64_SHA256SUM="3809625c3ecd9e13eb2fad709ddc6778944bbabe50ce1976b08085a035fea0aa"
+ARG FUSE_OVERLAYFS_ARM64_SHA256SUM="a28fe7fdaeb5fbe8e7a109ff02b2abbae69301bb7e0446c855023edf58be51c3"
+ARG FUSE_OVERLAYFS_PPC64LE_SHA256SUM="e9df32f9ae46d10e525e075fd1e6ba3284d179d030a5edb03b839791349eac60"
+ARG FUSE_OVERLAYFS_S390X_SHA256SUM="693c70932df666b71397163a604853362e8316e734e7202fdf342b0f6096b874"
+
+
 ENV OS xUbuntu_22.04
 ENV CRIO_VERSION 1.25
 RUN echo "Installing cri-o ..." \
@@ -128,12 +133,12 @@ RUN echo "Installing cri-o ..." \
     && mkdir -p /usr/share/keyrings \
     && curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/$OS/Release.key | gpg --dearmor -o /usr/share/keyrings/libcontainers-archive-keyring.gpg \
     && curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/${CRIO_VERSION}/$OS/Release.key | gpg --dearmor -o /usr/share/keyrings/libcontainers-crio-archive-keyring.gpg \
-    && apt-get update -y \
-    && apt-get install -o Dpkg::Options::="--force-confold" --yes --force-yes cri-o cri-o-runc \
+    && DEBIAN_FRONTEND=noninteractive clean-install -o Dpkg::Options::="--force-confold" --yes --force-yes cri-o cri-o-runc \
     && systemctl enable crio \
     && rm -rf /var/lib/apt/lists/*
 
-RUN echo "Installing crictl ..." \
+RUN echo "Installing crictl ${TARGETARCH} ..." \
+    && echo "${CRICTL_URL}" \
     && curl -sSL --retry 5 --output /tmp/crictl.${TARGETARCH}.tgz "${CRICTL_URL}" \
     && echo "${CRICTL_AMD64_SHA256SUM}  /tmp/crictl.amd64.tgz" | tee /tmp/crictl.sha256 \
     && echo "${CRICTL_ARM64_SHA256SUM}  /tmp/crictl.arm64.tgz" | tee -a /tmp/crictl.sha256 \
