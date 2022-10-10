@@ -40,17 +40,6 @@ FROM build-on${TARGETARCH} as build
 # all scripts are 0755 (rwx r-x r-x)
 COPY --chmod=0755 files/usr/local/bin/* /usr/local/bin/
 
-# all configs are 0644 (rw- r-- r--)
-COPY --chmod=0644 files/etc/* /etc/
-# Keep containerd configuration to support kind build
-COPY --chmod=0644 files/etc/containerd/* /etc/containerd/
-COPY --chmod=0644 files/etc/crio/* /etc/crio/
-COPY --chmod=0644 files/etc/default/* /etc/default/
-COPY --chmod=0644 files/etc/sysctl.d/* /etc/sysctl.d/
-COPY --chmod=0644 files/etc/systemd/system/* /etc/systemd/system/
-COPY --chmod=0644 files/etc/systemd/system/kubelet.service.d/* /etc/systemd/system/kubelet.service.d/
-COPY --chmod=0644 files/var/lib/kubelet/* /var/lib/kubelet/
-
 # Install dependencies, first from apt, then from release tarballs.
 # NOTE: we use one RUN to minimize layers.
 #
@@ -77,14 +66,19 @@ COPY --chmod=0644 files/var/lib/kubelet/* /var/lib/kubelet/
 # This is plenty after we've done initial setup for a node, but before we are
 # likely to try to export logs etc.
 
+# We need a newer podman to work around the podman load bug #11619
+
 RUN echo "Installing Packages ..." \
+    && mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://download.opensuse.org/repositories/devel:kubic:libcontainers:unstable/xUbuntu_22.04/Release.key | gpg --dearmor | tee /etc/apt/keyrings/devel_kubic_libcontainers_unstable.gpg > /dev/null \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/devel_kubic_libcontainers_unstable.gpg] https://download.opensuse.org/repositories/devel:kubic:libcontainers:unstable/xUbuntu_22.04/ /" | tee /etc/apt/sources.list.d/devel:kubic:libcontainers:unstable.list > /dev/null \
     && DEBIAN_FRONTEND=noninteractive clean-install \
       systemd \
       conntrack iptables iproute2 ethtool socat util-linux mount ebtables kmod \
       libseccomp2 pigz \
       bash ca-certificates curl rsync \
       nfs-common fuse-overlayfs open-iscsi \
-      jq gnupg \
+      jq gnupg podman \
     && find /lib/systemd/system/sysinit.target.wants/ -name "systemd-tmpfiles-setup.service" -delete \
     && rm -f /lib/systemd/system/multi-user.target.wants/* \
     && rm -f /etc/systemd/system/*.wants/* \
@@ -95,12 +89,9 @@ RUN echo "Installing Packages ..." \
     && echo "ReadKMsg=no" >> /etc/systemd/journald.conf \
     && ln -s "$(which systemd)" /sbin/init
 
-RUN echo "Enabling kubelet ... " \
-    && systemctl enable kubelet.service
-
 ARG TARGETARCH
 # Configure crictl binary from upstream
-ARG CRICTL_VERSION="v1.25.0"
+ARG CRICTL_VERSION="v1.25.1"
 ARG CRICTL_URL="https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-${TARGETARCH}.tar.gz"
 ARG CRICTL_AMD64_SHA256SUM="86ab210c007f521ac4cdcbcf0ae3fb2e10923e65f16de83e0e1db191a07f0235"
 ARG CRICTL_ARM64_SHA256SUM="651c939eca010bbf48cc3932516b194028af0893025f9e366127f5b50ad5c4f4"
@@ -116,7 +107,7 @@ ARG CNI_PLUGINS_ARM64_SHA256SUM="16484966a46b4692028ba32d16afd994e079dc2cc63fbc2
 ARG CNI_PLUGINS_PPC64LE_SHA256SUM="1551259fbfe861d942846bee028d5a85f492393e04bcd6609ac8aaa7a3d71431"
 ARG CNI_PLUGINS_S390X_SHA256SUM="767c6b2f191a666522ab18c26aab07de68508a8c7a6d56625e476f35ba527c76"
 
-# Configure fuse-overlayfs snapshotter binary from upstream
+# Configure fuse-overlayfs binary from upstream
 ARG FUSE_OVERLAYFS_VERSION="1.9"
 ARG FUSE_OVERLAYFS_TARBALL="v${FUSE_OVERLAYFS_VERSION}/fuse-overlayfs-${FUSE_OVERLAYFS_ARCH}"
 ARG FUSE_OVERLAYFS_URL="https://github.com/containers/fuse-overlayfs/releases/download/${FUSE_OVERLAYFS_TARBALL}"
@@ -125,55 +116,22 @@ ARG FUSE_OVERLAYFS_ARM64_SHA256SUM="a28fe7fdaeb5fbe8e7a109ff02b2abbae69301bb7e04
 ARG FUSE_OVERLAYFS_PPC64LE_SHA256SUM="e9df32f9ae46d10e525e075fd1e6ba3284d179d030a5edb03b839791349eac60"
 ARG FUSE_OVERLAYFS_S390X_SHA256SUM="693c70932df666b71397163a604853362e8316e734e7202fdf342b0f6096b874"
 
+#Configure crio from upstream
+ARG CRIO_VERSION="v1.25.1"
+ARG CRIO_TARBALL="cri-o.${TARGETARCH}.${CRIO_VERSION}.tar.gz"
+ARG CRIO_URL="https://github.com/cri-o/cri-o/releases/download/${CRIO_VERSION}/${CRIO_TARBALL}"
+ARG CRIO_AMD64_SHA256SUM="49f98a38805740c40266a5bf3badc28e4ca725ccf923327c75c00fccc241f562"
+ARG CRIO_ARM64_SHA256SUM="add26675dc993b292024d007fd69980d8d1e75c675851d0cb687fe1dfd1f3008"
 
-ENV OS xUbuntu_22.04
-ENV CRIO_VERSION 1.25
 RUN echo "Installing cri-o ..." \
-    && echo "deb [signed-by=/usr/share/keyrings/libcontainers-archive-keyring.gpg] https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/$OS/ /" > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list \
-    && echo "deb [signed-by=/usr/share/keyrings/libcontainers-crio-archive-keyring.gpg] https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/${CRIO_VERSION}/$OS/ /" > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable:cri-o:${CRIO_VERSION}.list \
-    && mkdir -p /usr/share/keyrings \
-    && curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/$OS/Release.key | gpg --dearmor -o /usr/share/keyrings/libcontainers-archive-keyring.gpg \
-    && curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/${CRIO_VERSION}/$OS/Release.key | gpg --dearmor -o /usr/share/keyrings/libcontainers-crio-archive-keyring.gpg \
-    && DEBIAN_FRONTEND=noninteractive clean-install -o Dpkg::Options::="--force-confold" --yes --force-yes cri-o cri-o-runc \
-    && systemctl enable crio
-
-# We need a newer podman to work around the podman load bug #11619
-RUN echo "Installing podman ..." \
-    && mkdir -p /etc/apt/keyrings \
-    && curl -fsSL https://download.opensuse.org/repositories/devel:kubic:libcontainers:unstable/xUbuntu_22.04/Release.key | gpg --dearmor | tee /etc/apt/keyrings/devel_kubic_libcontainers_unstable.gpg > /dev/null \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/devel_kubic_libcontainers_unstable.gpg] https://download.opensuse.org/repositories/devel:kubic:libcontainers:unstable/xUbuntu_22.04/ /" | tee /etc/apt/sources.list.d/devel:kubic:libcontainers:unstable.list > /dev/null \
-    && DEBIAN_FRONTEND=noninteractive clean-install podman
-
-RUN echo "Installing crictl ${TARGETARCH} ..." \
-    && echo "${CRICTL_URL}" \
-    && curl -sSL --retry 5 --output /tmp/crictl.${TARGETARCH}.tgz "${CRICTL_URL}" \
-    && echo "${CRICTL_AMD64_SHA256SUM}  /tmp/crictl.amd64.tgz" | tee /tmp/crictl.sha256 \
-    && echo "${CRICTL_ARM64_SHA256SUM}  /tmp/crictl.arm64.tgz" | tee -a /tmp/crictl.sha256 \
-    && echo "${CRICTL_PPC64LE_SHA256SUM}  /tmp/crictl.ppc64le.tgz" | tee -a /tmp/crictl.sha256 \
-    && echo "${CRICTL_S390X_SHA256SUM}  /tmp/crictl.s390x.tgz" | tee -a /tmp/crictl.sha256 \
-    && sha256sum --ignore-missing -c /tmp/crictl.sha256 \
-    && rm -f /tmp/crictl.sha256 \
-    && tar -C /usr/local/bin -xzvf /tmp/crictl.${TARGETARCH}.tgz \
-    && rm -rf /tmp/crictl.${TARGETARCH}.tgz
-
-RUN echo "Installing CNI plugin binaries ..." \
-    && curl -sSL --retry 5 --output /tmp/cni.${TARGETARCH}.tgz "${CNI_PLUGINS_URL}" \
-    && echo "${CNI_PLUGINS_AMD64_SHA256SUM}  /tmp/cni.amd64.tgz" | tee /tmp/cni.sha256 \
-    && echo "${CNI_PLUGINS_ARM64_SHA256SUM}  /tmp/cni.arm64.tgz" | tee -a /tmp/cni.sha256 \
-    && echo "${CNI_PLUGINS_PPC64LE_SHA256SUM}  /tmp/cni.ppc64le.tgz" | tee -a /tmp/cni.sha256 \
-    && echo "${CNI_PLUGINS_S390X_SHA256SUM}  /tmp/cni.s390x.tgz" | tee -a /tmp/cni.sha256 \
-    && sha256sum --ignore-missing -c /tmp/cni.sha256 \
-    && rm -f /tmp/cni.sha256 \
-    && mkdir -p /opt/cni/bin \
-    && tar -C /opt/cni/bin -xzvf /tmp/cni.${TARGETARCH}.tgz \
-    && rm -rf /tmp/cni.${TARGETARCH}.tgz \
-    && find /opt/cni/bin -type f -not \( \
-         -iname host-local \
-         -o -iname ptp \
-         -o -iname portmap \
-         -o -iname loopback \
-      \) \
-      -delete
+    && curl -sSL --retry 5 --output /tmp/crio.${TARGETARCH}.tgz "${CRIO_URL}" \
+    && echo "${CRIO_AMD64_SHA256SUM}  /tmp/crio.amd64.tgz" | tee /tmp/crio.sha256 \
+    && echo "${CRIO_ARM64_SHA256SUM}  /tmp/crio.arm64.tgz" | tee -a /tmp/crio.sha256 \
+    && sha256sum --ignore-missing -c /tmp/crio.sha256 \
+    && rm -f /tmp/crio.sha256 \
+    && tar -C /tmp -xzvf /tmp/crio.${TARGETARCH}.tgz \
+    && (cd /tmp/cri-o && ./install)\
+    && rm -rf /tmp/cri-o /tmp/crio.${TARGETARCH}.tgz
 
 RUN echo "Installing fuse-overlayfs ..." \
     && curl -sSL --retry 5 --output /tmp/fuse-overlayfs.${TARGETARCH} "${FUSE_OVERLAYFS_URL}" \
@@ -185,6 +143,21 @@ RUN echo "Installing fuse-overlayfs ..." \
     && rm -f /tmp/fuse-overlayfs.sha256 \
     && mv -f /tmp/fuse-overlayfs.${TARGETARCH} /usr/local/bin/fuse-overlayfs \
     && chmod +x /usr/local/bin/fuse-overlayfs
+
+# all configs are 0644 (rw- r-- r--)
+COPY --chmod=0644 files/etc/* /etc/
+# Keep containerd configuration to support kind build
+COPY --chmod=0644 files/etc/containerd/* /etc/containerd/
+COPY --chmod=0644 files/etc/crio/* /etc/crio/
+COPY --chmod=0644 files/etc/default/* /etc/default/
+COPY --chmod=0644 files/etc/sysctl.d/* /etc/sysctl.d/
+COPY --chmod=0644 files/etc/systemd/system/* /etc/systemd/system/
+COPY --chmod=0644 files/etc/systemd/system/kubelet.service.d/* /etc/systemd/system/kubelet.service.d/
+COPY --chmod=0644 files/var/lib/kubelet/* /var/lib/kubelet/
+
+RUN echo "Enabling crio and kubelet ... " \
+    && systemctl enable crio \
+    && systemctl enable kubelet.service
 
 RUN echo "Ensuring /etc/kubernetes/manifests" \
     && mkdir -p /etc/kubernetes/manifests

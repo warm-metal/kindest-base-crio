@@ -19,6 +19,7 @@ set -o errexit -o nounset -o pipefail
 CNI_PLUGINS_VERSION="$(sed -n 's/ARG CNI_PLUGINS_VERSION="\(.*\)"/\1/p' Dockerfile)"
 CRICTL_VERSION="$(sed -n 's/ARG CRICTL_VERSION="\(.*\)"/\1/p' Dockerfile)"
 FUSE_OVERLAYFS_VERSION="$(sed -n 's/ARG FUSE_OVERLAYFS_VERSION="\(.*\)"/\1/p' Dockerfile)"
+CRIO_VERSION="$(sed -n 's/ARG CRIO_VERSION="\(.*\)"/\1/p' Dockerfile)"
 
 # darwin is great
 SED="sed"
@@ -34,28 +35,7 @@ fi
 ARCHITECTURES=(
     "amd64"
     "arm64"
-    "ppc64le"
-    "s390x"
 )
-
-echo
-for ARCH in "${ARCHITECTURES[@]}"; do
-    CRICTL_URL="https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-${ARCH}.tar.gz"
-    SHASUM=$(curl -sSL --retry 5 "${CRICTL_URL}.sha256" | awk '{print $1}')
-    ARCH_UPPER=$(echo "$ARCH" | tr '[:lower:]' '[:upper:]')
-    echo "ARG CRICTL_${ARCH_UPPER}_SHA256SUM=${SHASUM}"
-    $SED -i 's/ARG CRICTL_'"${ARCH_UPPER}"'_SHA256SUM=.*/ARG CRICTL_'"${ARCH_UPPER}"'_SHA256SUM="'"${SHASUM}"'"/' Dockerfile
-done
-
-echo
-for ARCH in "${ARCHITECTURES[@]}"; do
-    CNI_TARBALL="${CNI_PLUGINS_VERSION}/cni-plugins-linux-${ARCH}-${CNI_PLUGINS_VERSION}.tgz"
-    CNI_URL="https://github.com/containernetworking/plugins/releases/download/${CNI_TARBALL}"
-    SHASUM=$(curl -sSL --retry 5 "${CNI_URL}.sha256" | awk '{print $1}')
-    ARCH_UPPER=$(echo "$ARCH" | tr '[:lower:]' '[:upper:]')
-    echo "ARG CNI_PLUGINS_${ARCH_UPPER}_SHA256SUM=${SHASUM}"
-    $SED -i 's/ARG CNI_PLUGINS_'"${ARCH_UPPER}"'_SHA256SUM=.*/ARG CNI_PLUGINS_'"${ARCH_UPPER}"'_SHA256SUM="'"${SHASUM}"'"/' Dockerfile
-done
 
 echo
 for ARCH in "${ARCHITECTURES[@]}"; do
@@ -68,4 +48,15 @@ for ARCH in "${ARCHITECTURES[@]}"; do
     ARCH_UPPER=$(echo "$ARCH" | tr '[:lower:]' '[:upper:]')
     echo "ARG FUSE_OVERLAYFS_${ARCH_UPPER}_SHA256SUM=${SHASUM}"
     $SED -i 's/ARG FUSE_OVERLAYFS_'"${ARCH_UPPER}"'_SHA256SUM=.*/ARG FUSE_OVERLAYFS_'"${ARCH_UPPER}"'_SHA256SUM="'"${SHASUM}"'"/' Dockerfile
+done
+
+echo
+for ARCH in "${ARCHITECTURES[@]}"; do
+    ARCH_URL=$ARCH
+    CRIO_TARBALL="cri-o.${ARCH}.${CRIO_VERSION}.tar.gz"
+    CRIO_URL="https://github.com/cri-o/cri-o/releases/download/${CRIO_VERSION}/${CRIO_TARBALL}.sha256sum"
+    SHASUM=$(curl -sSL --retry 5 "${CRIO_URL}" | grep "${CRIO_TARBALL}" | awk '{print $1}')
+    ARCH_UPPER=$(echo "$ARCH" | tr '[:lower:]' '[:upper:]')
+    echo "ARG CRIO_${ARCH_UPPER}_SHA256SUM=${SHASUM}"
+    $SED -i 's/ARG CRIO_'"${ARCH_UPPER}"'_SHA256SUM=.*/ARG CRIO_'"${ARCH_UPPER}"'_SHA256SUM="'"${SHASUM}"'"/' Dockerfile
 done
