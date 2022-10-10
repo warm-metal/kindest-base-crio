@@ -84,7 +84,7 @@ RUN echo "Installing Packages ..." \
       libseccomp2 pigz \
       bash ca-certificates curl rsync \
       nfs-common fuse-overlayfs open-iscsi \
-      jq gnupg podman \
+      jq gnupg \
     && find /lib/systemd/system/sysinit.target.wants/ -name "systemd-tmpfiles-setup.service" -delete \
     && rm -f /lib/systemd/system/multi-user.target.wants/* \
     && rm -f /etc/systemd/system/*.wants/* \
@@ -135,8 +135,14 @@ RUN echo "Installing cri-o ..." \
     && curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/$OS/Release.key | gpg --dearmor -o /usr/share/keyrings/libcontainers-archive-keyring.gpg \
     && curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/${CRIO_VERSION}/$OS/Release.key | gpg --dearmor -o /usr/share/keyrings/libcontainers-crio-archive-keyring.gpg \
     && DEBIAN_FRONTEND=noninteractive clean-install -o Dpkg::Options::="--force-confold" --yes --force-yes cri-o cri-o-runc \
-    && systemctl enable crio \
-    && rm -rf /var/lib/apt/lists/*
+    && systemctl enable crio
+
+# We need a newer podman to work around the podman load bug #11619
+RUN echo "Installing podman ..." \
+    && mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://download.opensuse.org/repositories/devel:kubic:libcontainers:unstable/xUbuntu_22.04/Release.key | gpg --dearmor | tee /etc/apt/keyrings/devel_kubic_libcontainers_unstable.gpg > /dev/null \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/devel_kubic_libcontainers_unstable.gpg] https://download.opensuse.org/repositories/devel:kubic:libcontainers:unstable/xUbuntu_22.04/ /" | tee /etc/apt/sources.list.d/devel:kubic:libcontainers:unstable.list > /dev/null \
+    && DEBIAN_FRONTEND=noninteractive clean-install podman
 
 RUN echo "Installing crictl ${TARGETARCH} ..." \
     && echo "${CRICTL_URL}" \

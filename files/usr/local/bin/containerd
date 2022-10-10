@@ -1,0 +1,4 @@
+#!/bin/sh
+
+# "containerd", "config", "dump"
+cat /etc/containerd/config.toml

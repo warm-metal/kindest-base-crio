@@ -1,14 +1,14 @@
 # kindest-base-crio
 
 This repo creates a base image for kind nodes with cri-o instead of containerd.
-Most of the files are duplicated from the [kind project](https://github.com/kubernetes-sigs/kind/).
+Most of the files are replicated from the [kind project](https://github.com/kubernetes-sigs/kind/).
 
 ## How to use
 We have a pre-built image for the amd64 architecture on DockerHub.
 You can use it to build your own node images for any K8s versions.
 
 ```
-kind build node-image --base-image warmmetal/kindest-base-crio:v20221010-aa7bbd3
+kind build node-image --base-image warmmetal/kindest-base-crio:v20221010-effaebd
 ```
 
 You may get a failure log like the one below in building, just ignore it.
