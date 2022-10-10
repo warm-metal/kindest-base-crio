@@ -78,7 +78,7 @@ RUN echo "Installing Packages ..." \
       libseccomp2 pigz \
       bash ca-certificates curl rsync \
       nfs-common fuse-overlayfs open-iscsi \
-      jq gnupg podman \
+      jq gnupg podman dbus \
     && find /lib/systemd/system/sysinit.target.wants/ -name "systemd-tmpfiles-setup.service" -delete \
     && rm -f /lib/systemd/system/multi-user.target.wants/* \
     && rm -f /etc/systemd/system/*.wants/* \
@@ -117,11 +117,11 @@ ARG FUSE_OVERLAYFS_PPC64LE_SHA256SUM="e9df32f9ae46d10e525e075fd1e6ba3284d179d030
 ARG FUSE_OVERLAYFS_S390X_SHA256SUM="693c70932df666b71397163a604853362e8316e734e7202fdf342b0f6096b874"
 
 #Configure crio from upstream
-ARG CRIO_VERSION="v1.25.1"
+ARG CRIO_VERSION="v1.24.3"
 ARG CRIO_TARBALL="cri-o.${TARGETARCH}.${CRIO_VERSION}.tar.gz"
 ARG CRIO_URL="https://github.com/cri-o/cri-o/releases/download/${CRIO_VERSION}/${CRIO_TARBALL}"
-ARG CRIO_AMD64_SHA256SUM="49f98a38805740c40266a5bf3badc28e4ca725ccf923327c75c00fccc241f562"
-ARG CRIO_ARM64_SHA256SUM="add26675dc993b292024d007fd69980d8d1e75c675851d0cb687fe1dfd1f3008"
+ARG CRIO_AMD64_SHA256SUM="43f6e3a7ad6ae8cf05ed0f1e493578c28abf6a798aedb8ee9643ff7c25a68ca3"
+ARG CRIO_ARM64_SHA256SUM="d8040602e03c90e4482b4ce97b63c2cf1301cd2afb0aa722342f40f3537a1a1f"
 
 RUN echo "Installing cri-o ..." \
     && curl -sSL --retry 5 --output /tmp/crio.${TARGETARCH}.tgz "${CRIO_URL}" \
@@ -148,6 +148,7 @@ RUN echo "Installing fuse-overlayfs ..." \
 COPY --chmod=0644 files/etc/* /etc/
 # Keep containerd configuration to support kind build
 COPY --chmod=0644 files/etc/containerd/* /etc/containerd/
+COPY --chmod=0644 files/etc/cni/net.d/* /etc/cni/net.d/
 COPY --chmod=0644 files/etc/crio/* /etc/crio/
 COPY --chmod=0644 files/etc/default/* /etc/default/
 COPY --chmod=0644 files/etc/sysctl.d/* /etc/sysctl.d/

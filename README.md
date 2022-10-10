@@ -26,7 +26,8 @@ docker push warmmetal/kindest-node-crio:v1.25.2
 ## Build
 
 ### Other versions
-The current version of cri-o is 1.25.1 .
+The current version of cri-o is 1.24.3.
+We use this version to work around [#6069](https://github.com/cri-o/cri-o/issues/6069) as the latest version doesn't get the fix merged.
 If you'd like to use other versions, modify **CRIO_VERSION** in the Dockerfile,
 then execute `make update-shasums` to update checksums in the Dockerfile.
 And, run `make quick` to build the base image for amd64.
