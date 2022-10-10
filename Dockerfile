@@ -49,6 +49,7 @@ COPY --chmod=0644 files/etc/default/* /etc/default/
 COPY --chmod=0644 files/etc/sysctl.d/* /etc/sysctl.d/
 COPY --chmod=0644 files/etc/systemd/system/* /etc/systemd/system/
 COPY --chmod=0644 files/etc/systemd/system/kubelet.service.d/* /etc/systemd/system/kubelet.service.d/
+COPY --chmod=0644 files/var/lib/kubelet/* /var/lib/kubelet/
 
 # Install dependencies, first from apt, then from release tarballs.
 # NOTE: we use one RUN to minimize layers.
@@ -176,7 +177,8 @@ RUN echo "Installing fuse-overlayfs ..." \
     && echo "${FUSE_OVERLAYFS_S390X_SHA256SUM}  /tmp/fuse-overlayfs.s390x" | tee -a /tmp/fuse-overlayfs.sha256 \
     && sha256sum --ignore-missing -c /tmp/fuse-overlayfs.sha256 \
     && rm -f /tmp/fuse-overlayfs.sha256 \
-    && mv -f /tmp/fuse-overlayfs.${TARGETARCH} /usr/local/bin/fuse-overlayfs
+    && mv -f /tmp/fuse-overlayfs.${TARGETARCH} /usr/local/bin/fuse-overlayfs \
+    && chmod +x /usr/local/bin/fuse-overlayfs
 
 RUN echo "Ensuring /etc/kubernetes/manifests" \
     && mkdir -p /etc/kubernetes/manifests
