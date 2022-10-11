@@ -66,19 +66,14 @@ COPY --chmod=0755 files/usr/local/bin/* /usr/local/bin/
 # This is plenty after we've done initial setup for a node, but before we are
 # likely to try to export logs etc.
 
-# We need a newer podman to work around the podman load bug #11619
-
 RUN echo "Installing Packages ..." \
-    && mkdir -p /etc/apt/keyrings \
-    && curl -fsSL https://download.opensuse.org/repositories/devel:kubic:libcontainers:unstable/xUbuntu_22.04/Release.key | gpg --dearmor | tee /etc/apt/keyrings/devel_kubic_libcontainers_unstable.gpg > /dev/null \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/devel_kubic_libcontainers_unstable.gpg] https://download.opensuse.org/repositories/devel:kubic:libcontainers:unstable/xUbuntu_22.04/ /" | tee /etc/apt/sources.list.d/devel:kubic:libcontainers:unstable.list > /dev/null \
     && DEBIAN_FRONTEND=noninteractive clean-install \
       systemd \
       conntrack iptables iproute2 ethtool socat util-linux mount ebtables kmod \
       libseccomp2 pigz \
       bash ca-certificates curl rsync \
       nfs-common fuse-overlayfs open-iscsi \
-      jq gnupg podman dbus \
+      jq gnupg dbus make \
     && find /lib/systemd/system/sysinit.target.wants/ -name "systemd-tmpfiles-setup.service" -delete \
     && rm -f /lib/systemd/system/multi-user.target.wants/* \
     && rm -f /etc/systemd/system/*.wants/* \
@@ -88,6 +83,13 @@ RUN echo "Installing Packages ..." \
     && rm -f /lib/systemd/system/basic.target.wants/* \
     && echo "ReadKMsg=no" >> /etc/systemd/journald.conf \
     && ln -s "$(which systemd)" /sbin/init
+
+# We need a newer podman to work around the podman load bug #11619
+RUN echo "Installing podman ..." \
+    && mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://download.opensuse.org/repositories/devel:kubic:libcontainers:unstable/xUbuntu_22.04/Release.key | gpg --dearmor | tee /etc/apt/keyrings/devel_kubic_libcontainers_unstable.gpg > /dev/null \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/devel_kubic_libcontainers_unstable.gpg] https://download.opensuse.org/repositories/devel:kubic:libcontainers:unstable/xUbuntu_22.04/ /" | tee /etc/apt/sources.list.d/devel:kubic:libcontainers:unstable.list > /dev/null \
+    && DEBIAN_FRONTEND=noninteractive clean-install podman=4:4.3.0~rc1-0ubuntu22.04+obs58.1
 
 ARG TARGETARCH
 # Configure crictl binary from upstream
@@ -117,20 +119,20 @@ ARG FUSE_OVERLAYFS_PPC64LE_SHA256SUM="e9df32f9ae46d10e525e075fd1e6ba3284d179d030
 ARG FUSE_OVERLAYFS_S390X_SHA256SUM="693c70932df666b71397163a604853362e8316e734e7202fdf342b0f6096b874"
 
 #Configure crio from upstream
-ARG CRIO_VERSION="v1.24.3"
+ARG CRIO_VERSION="v1.20.9"
 ARG CRIO_TARBALL="cri-o.${TARGETARCH}.${CRIO_VERSION}.tar.gz"
 ARG CRIO_URL="https://github.com/cri-o/cri-o/releases/download/${CRIO_VERSION}/${CRIO_TARBALL}"
-ARG CRIO_AMD64_SHA256SUM="43f6e3a7ad6ae8cf05ed0f1e493578c28abf6a798aedb8ee9643ff7c25a68ca3"
-ARG CRIO_ARM64_SHA256SUM="d8040602e03c90e4482b4ce97b63c2cf1301cd2afb0aa722342f40f3537a1a1f"
+# ARG CRIO_AMD64_SHA256SUM="43f6e3a7ad6ae8cf05ed0f1e493578c28abf6a798aedb8ee9643ff7c25a68ca3"
+# ARG CRIO_ARM64_SHA256SUM="d8040602e03c90e4482b4ce97b63c2cf1301cd2afb0aa722342f40f3537a1a1f"
 
 RUN echo "Installing cri-o ..." \
     && curl -sSL --retry 5 --output /tmp/crio.${TARGETARCH}.tgz "${CRIO_URL}" \
-    && echo "${CRIO_AMD64_SHA256SUM}  /tmp/crio.amd64.tgz" | tee /tmp/crio.sha256 \
-    && echo "${CRIO_ARM64_SHA256SUM}  /tmp/crio.arm64.tgz" | tee -a /tmp/crio.sha256 \
-    && sha256sum --ignore-missing -c /tmp/crio.sha256 \
-    && rm -f /tmp/crio.sha256 \
+    # && echo "${CRIO_AMD64_SHA256SUM}  /tmp/crio.amd64.tgz" | tee /tmp/crio.sha256 \
+    # && echo "${CRIO_ARM64_SHA256SUM}  /tmp/crio.arm64.tgz" | tee -a /tmp/crio.sha256 \
+    # && sha256sum --ignore-missing -c /tmp/crio.sha256 \
+    # && rm -f /tmp/crio.sha256 \
     && tar -C /tmp -xzvf /tmp/crio.${TARGETARCH}.tgz \
-    && (cd /tmp/cri-o && ./install)\
+    && (cd /tmp/cri-o && make install)\
     && rm -rf /tmp/cri-o /tmp/crio.${TARGETARCH}.tgz
 
 RUN echo "Installing fuse-overlayfs ..." \
