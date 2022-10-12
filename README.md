@@ -20,8 +20,15 @@ Image build Failed! Failed to tear down containerd after loading images command 
 
 We also provide a node image for K8s v1.25.2 on DockerHub.
 ```
-docker push warmmetal/kindest-node-crio:v1.25.2
+docker pull warmmetal/kindest-node-crio:v1.25.2
+# Or,
+kind create cluster --image docker.io/warmmetal/kindest-node-crio:v1.25.2
 ```
+
+You can load local images to kind clusters through `kind load`, 
+but only OCI image is correctly supported as podman assumes images to be loaded are OCI images.
+Loading docker images will get images with the wrong name. And prior podman can only load docker images.
+See [containers/common#793](https://github.com/containers/common/pull/793) and [containers/common#853](https://github.com/containers/common/pull/853) for more details.
 
 ## Build
 
